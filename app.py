@@ -21,11 +21,8 @@ st.markdown(
     """
     <style>
         body {
-            background-color: #1e1e1e;
-            color: #f0f0f0;
-            transition: all 0.3s ease;
-        }
-        .stApp {
+            background-color: #f5f5f5;
+            color: #333;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         .chat-container {
@@ -33,21 +30,21 @@ st.markdown(
             margin: auto;
             padding: 20px;
             border-radius: 10px;
-            background-color: #2c2c2c;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            background-color: #ffffff;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
         }
         .header {
             text-align: center;
             padding-bottom: 10px;
-            border-bottom: 1px solid #444;
+            border-bottom: 1px solid #ddd;
         }
         .header h1 {
-            color: #00aaff;
+            color: #007bff;
             font-size: 2em;
             margin: 0;
         }
         .header h2 {
-            color: #aaa;
+            color: #555;
             font-size: 1.2em;
             margin-top: 5px;
         }
@@ -55,23 +52,27 @@ st.markdown(
             margin-top: 40px;
             text-align: center;
             font-size: 0.9em;
-            color: #666;
+            color: #aaa;
         }
         .user-bubble {
-            background-color: #3b3b3b;
-            align-self: flex-end;
+            background-color: #eef2ff; /* Light blue for user messages */
+            float: right;
+            clear: both;
             border-radius: 10px;
             padding: 10px;
             margin: 5px 0;
             max-width: 80%;
+            color: #333;
         }
         .bot-bubble {
-            background-color: #37474f;
-            align-self: flex-start;
+            background-color: #333; /* Dark gray for bot responses */
+            float: left;
+            clear: both;
             border-radius: 10px;
             padding: 10px;
             margin: 5px 0;
             max-width: 80%;
+            color: #fff;
         }
         .dark-mode-toggle {
             position: fixed;
