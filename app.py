@@ -247,8 +247,20 @@ st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# File Upload Section (MOVED FIRST)
+# Show chat history
+for msg in st.session_state.chat_history:
+    bubble_class = "user-bubble" if msg["role"] == "user" else "bot-bubble"
+    content = msg["content"]
+    st.markdown(f'<div class="{bubble_class}"><strong>{msg["label"]}:</strong><br>{content}</div>', unsafe_allow_html=True)
+
+# Close chat container
+st.markdown('</div>', unsafe_allow_html=True)
+
+# File Upload Section
 uploaded_file = st.file_uploader("📎 Télécharger un virement à analyser (.png/.jpg)", type=["png", "jpg", "jpeg"])
+
+# User Input Section
+user_input = st.text_input("💬 Posez votre question :", placeholder="Exemple: Comment consulter mon solde ?")
 
 # Handle File Upload
 if uploaded_file:
@@ -271,10 +283,11 @@ if uploaded_file:
         )
 
         st.markdown(f'<div class="bot-bubble">{result}</div>', unsafe_allow_html=True)
-        st.session_state.chat_history.append({"role": "bot", "label": "🤖 BankMate", "content": result})
-
-# User Input Section (MOVED AFTER FILE UPLOAD)
-user_input = st.text_input("💬 Posez votre question :", placeholder="Exemple: Comment consulter mon solde ?")
+        st.session_state.chat_history.append({
+            "role": "bot",
+            "label": "🤖 BankMate",
+            "content": result
+        })
 
 # Handle User Input
 if user_input:
@@ -331,15 +344,6 @@ if user_input:
             f"<strong>الرد:</strong> {response_text}"
         )
     })
-
-# Show chat history
-for msg in st.session_state.chat_history:
-    bubble_class = "user-bubble" if msg["role"] == "user" else "bot-bubble"
-    content = msg["content"]
-    st.markdown(f'<div class="{bubble_class}"><strong>{msg["label"]}:</strong><br>{content}</div>', unsafe_allow_html=True)
-
-# Close chat container
-st.markdown('</div>', unsafe_allow_html=True)
 
 # Footer
 st.markdown('<div class="footer">© 2025 BankMate - Tous droits réservés.</div>', unsafe_allow_html=True)
