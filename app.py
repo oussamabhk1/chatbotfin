@@ -269,7 +269,7 @@ uploaded_file = st.file_uploader("📎 Télécharger un virement à analyser (.p
 # Clear Chat Button
 if st.button("🧹 Effacer la conversation"):
     st.session_state.chat_history = []
-    st.experimental_rerun()
+    st.experimental_rerun()  # Removed experimental_rerun
 
 # Handle User Input
 if user_input:
@@ -296,7 +296,6 @@ if user_input:
     )
 
     st.session_state.chat_history.append({"role": "bot", "label": "🤖 BankMate", "content": bot_response})
-    st.experimental_rerun()
 
 # Handle File Upload
 if uploaded_file:
@@ -317,7 +316,6 @@ if uploaded_file:
             "<br>".join([f"- {check}" for check in validate_invoice_fields(extracted_data)])
         )
         st.session_state.chat_history.append({"role": "bot", "label": "🤖 BankMate", "content": result})
-    st.experimental_rerun()
 
 # Close chat container
 st.markdown('</div>', unsafe_allow_html=True)
