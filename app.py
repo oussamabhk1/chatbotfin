@@ -256,38 +256,8 @@ for msg in st.session_state.chat_history:
 # Close chat container
 st.markdown('</div>', unsafe_allow_html=True)
 
-# File Upload Section
-uploaded_file = st.file_uploader("📎 Télécharger un virement à analyser (.png/.jpg)", type=["png", "jpg", "jpeg"])
-
 # User Input Section
 user_input = st.text_input("💬 Posez votre question :", placeholder="Exemple: Comment consulter mon solde ?")
-
-# Handle File Upload
-if uploaded_file:
-    base64_img = encode_image_file(uploaded_file)
-    st.markdown(f'<div class="user-bubble">📎 Fichier uploadé</div>', unsafe_allow_html=True)
-    st.image(uploaded_file, caption="Virement reçu", use_column_width=True)
-
-    with st.spinner("🧠 Analyse du virement en cours..."):
-        extracted_data = extract_invoice_data(base64_img)
-
-        result = (
-            f'📄 Données extraites :<br>'
-            f'👤 Payer: {extracted_data.get("payer", {}).get("name", "")} ({extracted_data.get("payer", {}).get("account", "")})<br>'
-            f'👤 Payee: {extracted_data.get("payee", {}).get("name", "")} ({extracted_data.get("payee", {}).get("account", "")})<br>'
-            f'📅 Date: {extracted_data.get("date", "")}<br>'
-            f'💬 Raison: {extracted_data.get("reason", "")}<br>'
-            f'💶 Montant (lettres): {extracted_data.get("amount_words", "")}<br><br>'
-            f'✅ Validation:<br>' +
-            "<br>".join([f"- {check}" for check in validate_invoice_fields(extracted_data)])
-        )
-
-        st.markdown(f'<div class="bot-bubble">{result}</div>', unsafe_allow_html=True)
-        st.session_state.chat_history.append({
-            "role": "bot",
-            "label": "🤖 BankMate",
-            "content": result
-        })
 
 # Handle User Input
 if user_input:
@@ -344,6 +314,36 @@ if user_input:
             f"<strong>الرد:</strong> {response_text}"
         )
     })
+
+# File Upload Section
+uploaded_file = st.file_uploader("📎 Télécharger un virement à analyser (.png/.jpg)", type=["png", "jpg", "jpeg"])
+
+# Handle File Upload
+if uploaded_file:
+    base64_img = encode_image_file(uploaded_file)
+    st.markdown(f'<div class="user-bubble">📎 Fichier uploadé</div>', unsafe_allow_html=True)
+    st.image(uploaded_file, caption="Virement reçu", use_column_width=True)
+
+    with st.spinner("🧠 Analyse du virement en cours..."):
+        extracted_data = extract_invoice_data(base64_img)
+
+        result = (
+            f'📄 Données extraites :<br>'
+            f'👤 Payer: {extracted_data.get("payer", {}).get("name", "")} ({extracted_data.get("payer", {}).get("account", "")})<br>'
+            f'👤 Payee: {extracted_data.get("payee", {}).get("name", "")} ({extracted_data.get("payee", {}).get("account", "")})<br>'
+            f'📅 Date: {extracted_data.get("date", "")}<br>'
+            f'💬 Raison: {extracted_data.get("reason", "")}<br>'
+            f'💶 Montant (lettres): {extracted_data.get("amount_words", "")}<br><br>'
+            f'✅ Validation:<br>' +
+            "<br>".join([f"- {check}" for check in validate_invoice_fields(extracted_data)])
+        )
+
+        st.markdown(f'<div class="bot-bubble">{result}</div>', unsafe_allow_html=True)
+        st.session_state.chat_history.append({
+            "role": "bot",
+            "label": "🤖 BankMate",
+            "content": result
+        })
 
 # Footer
 st.markdown('<div class="footer">© 2025 BankMate - Tous droits réservés.</div>', unsafe_allow_html=True)
