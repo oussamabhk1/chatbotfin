@@ -1,21 +1,68 @@
-# -*- coding: utf-8 -*-
 import os
 import json
 import base64
 import pandas as pd
 from datetime import datetime
-from PIL import Image
-import io
 
 import streamlit as st
 from groq import Groq
-from langdetect import detect
+from langdetect import detect, LangDetectException
 from sentence_transformers import SentenceTransformer
 from sklearn.neighbors import NearestNeighbors
 
-# Configuration de la page Streamlit
-st.set_page_config(page_title="Chatbot Bancaire + Extraction Virements", layout="wide")
-st.title("💬 Chatbot Bancaire")
+# === PAGE CONFIGURATION ===
+st.set_page_config(page_title="Chatbot Bancaire", layout="wide")
+
+# === CUSTOM CSS FOR BANKING STYLE ===
+st.markdown(
+    """
+    <style>
+        body {
+            background-color: #f5f5f5;
+        }
+        .stApp {
+            font-family: 'Arial', sans-serif;
+        }
+        .stTabs > div[data-baseweb="tab"] > button {
+            color: #333;
+            background-color: #f0f0f0;
+            border: none;
+            padding: 10px 20px;
+            margin-right: 10px;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+        .stTabs > div[data-baseweb="tab"][data-selected] > button {
+            background-color: #007bff;
+            color: white;
+        }
+        .stButton > button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .stButton > button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Header with Logo
+col1, col2 = st.columns([1, 4])
+with col1:
+    st.image("https://cdn-icons-png.flaticon.com/512/4712/4712109.png ", width=60)
+with col2:
+    st.title("💬 Chatbot Bancaire")
+    st.subheader("Votre assistant bancaire intelligent")
+
+# Tabs
+tab1, tab2 = st.tabs(["📩 Chatbot Bancaire", "📤 Extraction Virements"])
 
 # === INITIALISATION CHATBOT ===
 @st.cache_resource
@@ -24,39 +71,52 @@ def load_model():
 
 @st.cache_data
 def load_data():
-    return pd.read_csv("cleanedTranslatedBankFAQs.csv", usecols=[
+    df = pd.read_csv("cleanedTranslatedBankFAQs.csv", usecols=[
         "Question", "Answer", "Class", "Profile",
         "Profile_fr", "Profile_ar", "Class_fr", "Class_ar",
         "Question_fr", "Question_ar", "Answer_fr", "Answer_ar"
     ])
+    return df
 
 model = load_model()
 df = load_data()
 
 @st.cache_resource
-def build_embeddings(df):
-    embeddings = {
-        "fr": model.encode(df["Profile_fr"].fillna('') + " - " + df["Question_fr"].fillna('')),
-        "en": model.encode(df["Profile"].fillna('') + " - " + df["Question"].fillna('')),
-        "ar": model.encode(df["Profile_ar"].fillna('') + " - " + df["Question_ar"].fillna(''))
-    }
-    nn_models = {
-        lang: NearestNeighbors(n_neighbors=1, metric="cosine").fit(embeddings[lang])
-        for lang in embeddings
-    }
+def build_embeddings(data):
+    embeddings = {}
+    nn_models = {}
+
+    # English
+    en_questions = data["Profile"].fillna('') + " - " + data["Question"].fillna('')
+    embeddings['en'] = model.encode(en_questions.tolist())
+    nn_models['en'] = NearestNeighbors(n_neighbors=1, metric="cosine").fit(embeddings['en'])
+
+    # French
+    fr_questions = data["Profile_fr"].fillna('') + " - " + data["Question_fr"].fillna('')
+    embeddings['fr'] = model.encode(fr_questions.tolist())
+    nn_models['fr'] = NearestNeighbors(n_neighbors=1, metric="cosine").fit(embeddings['fr'])
+
+    # Arabic (only if columns exist)
+    if "Question_ar" in data.columns and not data["Question_ar"].isnull().all():
+        ar_questions = data["Profile_ar"].fillna('') + " - " + data["Question_ar"].fillna('')
+        embeddings['ar'] = model.encode(ar_questions.tolist())
+        nn_models['ar'] = NearestNeighbors(n_neighbors=1, metric="cosine").fit(embeddings['ar'])
+    else:
+        st.warning("⚠️ Colonnes arabes absentes ou vides dans le CSV.")
+
     return embeddings, nn_models
 
 embeddings, nn_models = build_embeddings(df)
 
-# === INITIALISATION EXTRACTION virement ===
-client = Groq(api_key="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")
+# === EXTRACTION VIREMENT SETUP ===
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))  # Set this in secrets or environment
 
 def encode_image_file(uploaded_file):
     return base64.b64encode(uploaded_file.read()).decode("utf-8")
 
 def extract_invoice_data(base64_image):
     system_prompt = """
-    Extract payement data and return JSON with these exact fields:
+    Extract payment data and return JSON with these exact fields:
     - payer: {name: string, account: string (8 digits)}
     - payee: {name: string, account: string (20 digits)}
     - date: string (format DD/MM/YYYY)
@@ -112,7 +172,7 @@ def validate_date(date_str):
     try:
         datetime.strptime(date_str, "%d/%m/%Y")
         return True
-    except:
+    except ValueError:
         return False
 
 def validate_invoice_fields(data):
@@ -122,14 +182,11 @@ def validate_invoice_fields(data):
     results.append("✅ Payer account" if data['payer']['account'] and len(data['payer']['account']) == 8 else "❌ Invalid payer account")
     results.append("✅ Payee account" if data['payee']['account'] and len(data['payee']['account']) == 20 else "❌ Invalid payee account")
     results.append("✅ Valid date" if validate_date(data['date']) else "❌ Invalid or missing date")
-    results.append("✅ reason" if data['reason'] else "❌ Missing reason")
+    results.append("✅ Reason provided" if data['reason'] else "❌ Missing reason")
     return results
-# === INTERFACE STREAMLIT ===
-tab1, tab2 = st.tabs(["📩 Chatbot Bancaire", "📤 Extraction Virements"])
 
+# === TAB 1: CHATBOT BANCAIRE ===
 with tab1:
-    st.subheader("💬 Assistant Bancaire Intelligent")
-
     now = datetime.now().hour
     if now < 12:
         greeting = "☀️ Bonjour !"
@@ -140,22 +197,44 @@ with tab1:
 
     st.markdown(f"### {greeting} Comment puis-je vous aider aujourd’hui ?")
 
-    user_input = st.text_input("💡 Posez une question bancaire ci-dessous :")
+    user_input = st.text_input(
+        "💡 Posez une question bancaire ci-dessous :",
+        placeholder="Exemple: Comment effectuer un virement ?"
+    )
 
     if user_input:
-        lang = detect(user_input)
+        try:
+            lang = detect(user_input)
+        except LangDetectException:
+            lang = 'en'
+
+        if lang not in ['en', 'fr', 'ar']:
+            lang = 'en'
+
         query = model.encode(user_input)
         distances, indices = nn_models[lang].kneighbors([query])
         idx = indices[0][0]
+
         profile_col = f"Profile_{lang}" if lang != "en" else "Profile"
-        profile_txt = df.iloc[idx][profile_col]
-        # Afficher le profil
-        st.write("### 🏷️ Profil concerné :")
-        st.info(profile_txt)
-        
         answer_col = f"Answer_{lang}" if lang != "en" else "Answer"
+
+        st.write("### 🏷️ Profil concerné :")
+        st.info(df.iloc[idx][profile_col])
+
         st.write("### 📌 Réponse suggérée :")
         st.success(df.iloc[idx][answer_col])
+
+    # FAQ Section
+    st.subheader("🔍 Questions Fréquentes")
+    faqs = [
+        {"question": "Comment effectuer un virement ?", "answer": "Suivez ces étapes pour effectuer un virement."},
+        {"question": "Où trouver mon solde ?", "answer": "Consultez votre compte en ligne."}
+    ]
+    for faq in faqs:
+        with st.expander(faq["question"]):
+            st.write(faq["answer"])
+
+# === TAB 2: EXTRACTION VIREMENTS ===
 with tab2:
     st.subheader("Uploader un virement à analyser")
     uploaded_file = st.file_uploader("📎 Déposez une image (.png/.jpg)", type=["png", "jpg", "jpeg"])
@@ -165,7 +244,6 @@ with tab2:
         with st.spinner("🧠 Extraction en cours..."):
             extracted_data = extract_invoice_data(base64_img)
 
-            # Affichage personnalisé sans amount
             st.markdown("### 📄 Données extraites")
             st.write(f"👤 Payer : {extracted_data['payer']['name']} ({extracted_data['payer']['account']})")
             st.write(f"👤 Payee : {extracted_data['payee']['name']} ({extracted_data['payee']['account']})")
@@ -177,4 +255,6 @@ with tab2:
             for check in validate_invoice_fields(extracted_data):
                 st.write(f"- {check}")
 
-st.image("https://cdn-icons-png.flaticon.com/512/4712/4712109.png", width=60)
+# Footer
+st.markdown("---")
+st.markdown("© 2025 Chatbot Bancaire - Tous droits réservés.")
