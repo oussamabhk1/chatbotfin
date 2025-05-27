@@ -4,8 +4,8 @@ import base64
 import pandas as pd
 from datetime import datetime
 
-# Suppress PyTorch warning in Streamlit (optional)
-os.environ["TORCH_SHOW_CPP_STACKTRACES"] = "1"
+# Suppress PyTorch warnings from Streamlit watcher
+os.environ["TORCH_SHOW_CPP_STACKTRACES"] = "0"
 
 import streamlit as st
 from groq import Groq
@@ -112,8 +112,7 @@ def build_embeddings(data):
 embeddings, nn_models = build_embeddings(df)
 
 # === EXTRACTION VIREMENT SETUP ===
-# Use environment variable or secrets.toml for production
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))  # Set this in secrets or env
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))  # Set this in secrets or environment
 
 def encode_image_file(uploaded_file):
     return base64.b64encode(uploaded_file.read()).decode("utf-8")
