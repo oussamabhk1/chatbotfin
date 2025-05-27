@@ -14,55 +14,86 @@ from sentence_transformers import SentenceTransformer
 from sklearn.neighbors import NearestNeighbors
 
 # === PAGE CONFIGURATION ===
-st.set_page_config(page_title="Chatbot Bancaire", layout="wide")
+st.set_page_config(page_title="BankMate", layout="centered")
 
 # === CUSTOM CSS FOR BANKING STYLE ===
 st.markdown(
     """
     <style>
         body {
-            background-color: #f5f5f5;
+            background-color: #eef2f7;
+            color: #333;
         }
         .stApp {
-            font-family: 'Arial', sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        .stTabs > div[data-baseweb="tab"] > button {
-            color: #333;
-            background-color: #f0f0f0;
-            border: none;
-            padding: 10px 20px;
-            margin-right: 10px;
-            border-radius: 5px;
-            transition: all 0.3s ease;
+        .chat-container {
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+            border-radius: 10px;
+            background-color: #ffffff;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
         }
-        .stTabs > div[data-baseweb="tab"][data-selected] > button {
-            background-color: #007bff;
-            color: white;
+        .header {
+            text-align: center;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ddd;
         }
-        .stButton > button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: all 0.3s ease;
+        .header h1 {
+            color: #007bff;
+            font-size: 2em;
+            margin: 0;
         }
-        .stButton > button:hover {
-            background-color: #0056b3;
+        .header h2 {
+            color: #555;
+            font-size: 1.2em;
+            margin-top: 5px;
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 0.9em;
+            color: #aaa;
+        }
+        .user-bubble {
+            background-color: #dcf8c6;
+            align-self: flex-end;
+            border-radius: 10px;
+            padding: 10px;
+            margin: 5px 0;
+            max-width: 80%;
+            align-items: flex-end;
+        }
+        .bot-bubble {
+            background-color: #e1f5fe;
+            align-self: flex-start;
+            border-radius: 10px;
+            padding: 10px;
+            margin: 5px 0;
+            max-width: 80%;
+            align-items: flex-start;
         }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# Header with Logo
-col1, col2 = st.columns([1, 4])
-with col1:
-    st.image("https://cdn-icons-png.flaticon.com/512/4712/4712109.png ", width=60)
+# === HEADER ===
+st.markdown(
+    """
+    <div class="header">
+        <h1>🏦 BankMate</h1>
+        <h2>Votre assistant bancaire intelligent</h2>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Header image/logo
+col1, col2, col3 = st.columns([1, 4, 1])
 with col2:
-    st.title("💬 Chatbot Bancaire")
-    st.subheader("Votre assistant bancaire intelligent")
+    st.image("https://cdn-icons-png.flaticon.com/512/4712/4712109.png ", width=100)
 
 # === INITIALISATION CHATBOT ===
 @st.cache_resource
@@ -86,17 +117,14 @@ def build_embeddings(data):
     embeddings = {}
     nn_models = {}
 
-    # English
     en_questions = data["Profile"].fillna('') + " - " + data["Question"].fillna('')
     embeddings['en'] = model.encode(en_questions.tolist())
     nn_models['en'] = NearestNeighbors(n_neighbors=1, metric="cosine").fit(embeddings['en'])
 
-    # French
     fr_questions = data["Profile_fr"].fillna('') + " - " + data["Question_fr"].fillna('')
     embeddings['fr'] = model.encode(fr_questions.tolist())
     nn_models['fr'] = NearestNeighbors(n_neighbors=1, metric="cosine").fit(embeddings['fr'])
 
-    # Arabic (only if columns exist and are not empty)
     if "Question_ar" in data.columns and not data["Question_ar"].isnull().all():
         ar_questions = data["Profile_ar"].fillna('') + " - " + data["Question_ar"].fillna('')
         embeddings['ar'] = model.encode(ar_questions.tolist())
@@ -109,8 +137,7 @@ def build_embeddings(data):
 embeddings, nn_models = build_embeddings(df)
 
 # === EXTRACTION VIREMENT SETUP ===
-# 🔑 Hardcoded API key for local testing
-client = Groq(api_key="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")
+client = Groq(api_key="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")  # Replace securely in production
 
 def encode_image_file(uploaded_file):
     return base64.b64encode(uploaded_file.read()).decode("utf-8")
@@ -199,25 +226,27 @@ elif now < 18:
 else:
     greeting = "🌙 Bonsoir !"
 
-st.markdown(f"### {greeting} Comment puis-je vous aider aujourd’hui ?")
+st.markdown(f"<p style='text-align:center; font-size:1.2em;'>{greeting} Comment puis-je vous aider aujourd’hui ?</p>", unsafe_allow_html=True)
+
+# Chat container
+st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
 # User Input Section
-user_input = st.text_input(
-    "💡 Posez une question bancaire ci-dessous :",
-    placeholder="Exemple: Comment effectuer un virement ?"
-)
+user_input = st.text_input("💬 Posez votre question :", placeholder="Exemple: Comment consulter mon solde ?")
 
 # File Upload Section
-uploaded_file = st.file_uploader("Uploader un virement à analyser", type=["png", "jpg", "jpeg"])
+uploaded_file = st.file_uploader("📎 Télécharger un virement à analyser (.png/.jpg)", type=["png", "jpg", "jpeg"])
 
 # Handle User Input
 if user_input:
+    st.markdown(f'<div class="user-bubble"><strong>👤 Vous:</strong><br>{user_input}</div>', unsafe_allow_html=True)
+
     try:
         lang = detect(user_input)
     except LangDetectException:
         lang = 'en'
 
-    if lang not in ['en', 'fr', 'ar']:
+    if lang not in ['en', 'fr']:
         lang = 'en'
 
     query = model.encode(user_input)
@@ -227,33 +256,32 @@ if user_input:
     profile_col = f"Profile_{lang}" if lang != "en" else "Profile"
     answer_col = f"Answer_{lang}" if lang != "en" else "Answer"
 
-    st.write("### 🏷️ Profil concerné :")
-    st.info(df.iloc[idx][profile_col])
-
-    st.write("### 📌 Réponse suggérée :")
-    st.success(df.iloc[idx][answer_col])
+    st.markdown(f'<div class="bot-bubble"><strong>🤖 BankMate:</strong><br>'
+                f'🔍 Profil concerné: <i>{df.iloc[idx][profile_col]}</i><br>'
+                f'📌 Réponse: {df.iloc[idx][answer_col]}</div>', unsafe_allow_html=True)
 
 # Handle File Upload
 if uploaded_file:
+    st.markdown(f'<div class="user-bubble"><strong>📎 Fichier uploadé:</strong></div>', unsafe_allow_html=True)
     base64_img = encode_image_file(uploaded_file)
-    st.image(uploaded_file, caption="Virement uploadée", use_column_width=True)
-    with st.spinner("🧠 Extraction en cours..."):
+    st.image(uploaded_file, caption="Virement reçu", use_column_width=True)
+
+    with st.spinner("🧠 Analyse du virement en cours..."):
         extracted_data = extract_invoice_data(base64_img)
 
-        st.markdown("### 📄 Données extraites")
-        if extracted_data:
-            st.write(f"👤 Payer : {extracted_data.get('payer', {}).get('name', '')} ({extracted_data.get('payer', {}).get('account', '')})")
-            st.write(f"👤 Payee : {extracted_data.get('payee', {}).get('name', '')} ({extracted_data.get('payee', {}).get('account', '')})")
-            st.write(f"📅 Date : {extracted_data.get('date', '')}")
-            st.write(f"💬 Raison : {extracted_data.get('reason', '')}")
-            st.write(f"💶 Montant en lettres : {extracted_data.get('amount_words', '')}")
+        st.markdown(f'<div class="bot-bubble"><strong>📄 Données extraites :</strong><br>'
+                    f'👤 Payer: {extracted_data.get("payer", {}).get("name", "")} ({extracted_data.get("payer", {}).get("account", "")})<br>'
+                    f'👤 Payee: {extracted_data.get("payee", {}).get("name", "")} ({extracted_data.get("payee", {}).get("account", "")})<br>'
+                    f'📅 Date: {extracted_data.get("date", "")}<br>'
+                    f'💬 Raison: {extracted_data.get("reason", "")}<br>'
+                    f'💶 Montant (lettres): {extracted_data.get("amount_words", "")}<br><br>'
+                    f'✅ Validation:<br>' +
+                    "<br>".join([f"- {check}" for check in validate_invoice_fields(extracted_data)]) +
+                    "</div>",
+                    unsafe_allow_html=True)
 
-            st.markdown("### ✅ Résultats de validation")
-            for check in validate_invoice_fields(extracted_data):
-                st.write(f"- {check}")
-        else:
-            st.warning("Aucune donnée extraite trouvée.")
+# Close chat container
+st.markdown('</div>', unsafe_allow_html=True)
 
 # Footer
-st.markdown("---")
-st.markdown("© 2025 Chatbot Bancaire - Tous droits réservés.")
+st.markdown('<div class="footer">© 2025 BankMate - Tous droits réservés.</div>', unsafe_allow_html=True)
