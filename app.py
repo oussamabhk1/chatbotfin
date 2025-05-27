@@ -64,9 +64,6 @@ with col2:
     st.title("💬 Chatbot Bancaire")
     st.subheader("Votre assistant bancaire intelligent")
 
-# Tabs
-tab1, tab2 = st.tabs(["📩 Chatbot Bancaire", "📤 Extraction Virements"])
-
 # === INITIALISATION CHATBOT ===
 @st.cache_resource
 def load_model():
@@ -193,68 +190,69 @@ def validate_invoice_fields(data):
     results.append("✅ Reason provided" if data.get('reason') else "❌ Missing reason")
     return results
 
-# === TAB 1: CHATBOT BANCAIRE ===
-with tab1:
-    now = datetime.now().hour
-    if now < 12:
-        greeting = "☀️ Bonjour !"
-    elif now < 18:
-        greeting = "🌤️ Bon après-midi !"
-    else:
-        greeting = "🌙 Bonsoir !"
+# === MAIN APP LOGIC ===
+now = datetime.now().hour
+if now < 12:
+    greeting = "☀️ Bonjour !"
+elif now < 18:
+    greeting = "🌤️ Bon après-midi !"
+else:
+    greeting = "🌙 Bonsoir !"
 
-    st.markdown(f"### {greeting} Comment puis-je vous aider aujourd’hui ?")
+st.markdown(f"### {greeting} Comment puis-je vous aider aujourd’hui ?")
 
-    user_input = st.text_input(
-        "💡 Posez une question bancaire ci-dessous :",
-        placeholder="Exemple: Comment effectuer un virement ?"
-    )
+# User Input Section
+user_input = st.text_input(
+    "💡 Posez une question bancaire ci-dessous :",
+    placeholder="Exemple: Comment effectuer un virement ?"
+)
 
-    if user_input:
-        try:
-            lang = detect(user_input)
-        except LangDetectException:
-            lang = 'en'
+# File Upload Section
+uploaded_file = st.file_uploader("Uploader un virement à analyser", type=["png", "jpg", "jpeg"])
 
-        if lang not in ['en', 'fr', 'ar']:
-            lang = 'en'
+# Handle User Input
+if user_input:
+    try:
+        lang = detect(user_input)
+    except LangDetectException:
+        lang = 'en'
 
-        query = model.encode(user_input)
-        distances, indices = nn_models[lang].kneighbors([query])
-        idx = indices[0][0]
+    if lang not in ['en', 'fr', 'ar']:
+        lang = 'en'
 
-        profile_col = f"Profile_{lang}" if lang != "en" else "Profile"
-        answer_col = f"Answer_{lang}" if lang != "en" else "Answer"
+    query = model.encode(user_input)
+    distances, indices = nn_models[lang].kneighbors([query])
+    idx = indices[0][0]
 
-        st.write("### 🏷️ Profil concerné :")
-        st.info(df.iloc[idx][profile_col])
+    profile_col = f"Profile_{lang}" if lang != "en" else "Profile"
+    answer_col = f"Answer_{lang}" if lang != "en" else "Answer"
 
-        st.write("### 📌 Réponse suggérée :")
-        st.success(df.iloc[idx][answer_col])
+    st.write("### 🏷️ Profil concerné :")
+    st.info(df.iloc[idx][profile_col])
 
-# === TAB 2: EXTRACTION VIREMENTS ===
-with tab2:
-    st.subheader("Uploader un virement à analyser")
-    uploaded_file = st.file_uploader("📎 Déposez une image (.png/.jpg)", type=["png", "jpg", "jpeg"])
-    if uploaded_file:
-        base64_img = encode_image_file(uploaded_file)
-        st.image(uploaded_file, caption="Virement uploadée", use_column_width=True)
-        with st.spinner("🧠 Extraction en cours..."):
-            extracted_data = extract_invoice_data(base64_img)
+    st.write("### 📌 Réponse suggérée :")
+    st.success(df.iloc[idx][answer_col])
 
-            st.markdown("### 📄 Données extraites")
-            if extracted_data:
-                st.write(f"👤 Payer : {extracted_data.get('payer', {}).get('name', '')} ({extracted_data.get('payer', {}).get('account', '')})")
-                st.write(f"👤 Payee : {extracted_data.get('payee', {}).get('name', '')} ({extracted_data.get('payee', {}).get('account', '')})")
-                st.write(f"📅 Date : {extracted_data.get('date', '')}")
-                st.write(f"💬 Raison : {extracted_data.get('reason', '')}")
-                st.write(f"💶 Montant en lettres : {extracted_data.get('amount_words', '')}")
+# Handle File Upload
+if uploaded_file:
+    base64_img = encode_image_file(uploaded_file)
+    st.image(uploaded_file, caption="Virement uploadée", use_column_width=True)
+    with st.spinner("🧠 Extraction en cours..."):
+        extracted_data = extract_invoice_data(base64_img)
 
-                st.markdown("### ✅ Résultats de validation")
-                for check in validate_invoice_fields(extracted_data):
-                    st.write(f"- {check}")
-            else:
-                st.warning("Aucune donnée extraite trouvée.")
+        st.markdown("### 📄 Données extraites")
+        if extracted_data:
+            st.write(f"👤 Payer : {extracted_data.get('payer', {}).get('name', '')} ({extracted_data.get('payer', {}).get('account', '')})")
+            st.write(f"👤 Payee : {extracted_data.get('payee', {}).get('name', '')} ({extracted_data.get('payee', {}).get('account', '')})")
+            st.write(f"📅 Date : {extracted_data.get('date', '')}")
+            st.write(f"💬 Raison : {extracted_data.get('reason', '')}")
+            st.write(f"💶 Montant en lettres : {extracted_data.get('amount_words', '')}")
+
+            st.markdown("### ✅ Résultats de validation")
+            for check in validate_invoice_fields(extracted_data):
+                st.write(f"- {check}")
+        else:
+            st.warning("Aucune donnée extraite trouvée.")
 
 # Footer
 st.markdown("---")
