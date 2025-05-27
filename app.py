@@ -138,20 +138,108 @@ def build_embeddings(data):
     embeddings = {}
     nn_models = {}
 
+    # English
     en_questions = data["Profile"].fillna('') + " - " + data["Question"].fillna('')
     embeddings['en'] = model.encode(en_questions.tolist())
     nn_models['en'] = NearestNeighbors(n_neighbors=1, metric="cosine").fit(embeddings['en'])
 
+    # French
     fr_questions = data["Profile_fr"].fillna('') + " - " + data["Question_fr"].fillna('')
     embeddings['fr'] = model.encode(fr_questions.tolist())
     nn_models['fr'] = NearestNeighbors(n_neighbors=1, metric="cosine").fit(embeddings['fr'])
 
+    # Arabic (only if columns exist and are not empty)
     if "Question_ar" in data.columns and not data["Question_ar"].isnull().all():
         ar_questions = data["Profile_ar"].fillna('') + " - " + data["Question_ar"].fillna('')
         embeddings['ar'] = model.encode(ar_questions.tolist())
-        nn_models['ar'] = NearestButtons
-        results.append("✅ Reason provided" if data.get('reason') else "❌ Missing reason")
-        return results
+        nn_models['ar'] = NearestNeighbors(n_neighbors=1, metric="cosine").fit(embeddings['ar'])
+    else:
+        st.warning("⚠️ Colonnes arabes absentes ou vides dans le CSV.")
+
+    return embeddings, nn_models
+
+embeddings, nn_models = build_embeddings(df)  # Ensure this runs before accessing nn_models
+
+# === EXTRACTION VIREMENT SETUP ===
+client = Groq(api_key="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")  # Replace securely in production
+
+def encode_image_file(uploaded_file):
+    return base64.b64encode(uploaded_file.read()).decode("utf-8")
+
+def extract_invoice_data(base64_image):
+    system_prompt = """
+    Extract payment data and return JSON with these exact fields:
+    - payer: {name: string, account: string (8 digits)}
+    - payee: {name: string, account: string (20 digits)}
+    - date: string (format DD/MM/YYYY)
+    - amount_words: string (French)
+    - reason: string
+    Return null for missing fields. Maintain this structure exactly.
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Extract all invoice data"},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
+                    ]
+                }
+            ],
+            temperature=0.0,
+        )
+        return json.loads(response.choices[0].message.content)
+    except Exception as e:
+        st.error(f"❌ Erreur lors de l'extraction de l'image : {str(e)}")
+        return {}
+
+def convert_french_amount(words):
+    french_numbers = {
+        'zero': 0, 'un': 1, 'deux': 2, 'trois': 3, 'quatre': 4,
+        'cinq': 5, 'six': 6, 'sept': 7, 'huit': 8, 'neuf': 9,
+        'dix': 10, 'onze': 11, 'douze': 12, 'treize': 13,
+        'quatorze': 14, 'quinze': 15, 'seize': 16,
+        'dix-sept': 17, 'dix-huit': 18, 'dix-neuf': 19,
+        'vingt': 20, 'trente': 30, 'quarante': 40,
+        'cinquante': 50, 'soixante': 60, 'soixante-dix': 70,
+        'quatre-vingt': 80, 'quatre-vingt-dix': 90,
+        'cent': 100, 'cents': 100, 'mille': 1000
+    }
+
+    words = words.lower().replace('dinars', '').replace('dinar', '').strip()
+    total = current = 0
+    for word in words.split():
+        if word in french_numbers:
+            val = french_numbers[word]
+            if val >= 100:
+                current = 1 if current == 0 else current
+                total += current * val
+                current = 0
+            else:
+                current += val
+    return total + current
+
+def validate_date(date_str):
+    try:
+        datetime.strptime(date_str, "%d/%m/%Y")
+        return True
+    except ValueError:
+        return False
+
+def validate_invoice_fields(data):
+    results = []
+    results.append("✅ Payer name" if data.get('payer', {}).get('name') else "❌ Missing payer name")
+    results.append("✅ Payee name" if data.get('payee', {}).get('name') else "❌ Missing payee name")
+    results.append("✅ Payer account" if data.get('payer', {}).get('account') and len(data.get('payer', {}).get('account', '')) == 8 else "❌ Invalid payer account")
+    results.append("✅ Payee account" if data.get('payee', {}).get('account') and len(data.get('payee', {}).get('account', '')) == 20 else "❌ Invalid payee account")
+    results.append("✅ Valid date" if validate_date(data.get('date', '')) else "❌ Invalid or missing date")
+    results.append("✅ Reason provided" if data.get('reason') else "❌ Missing reason")
+    return results
 
 # === MAIN APP LOGIC ===
 now = datetime.now().hour
