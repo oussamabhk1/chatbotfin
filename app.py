@@ -16,7 +16,7 @@ from sklearn.neighbors import NearestNeighbors
 # === PAGE CONFIGURATION ===
 st.set_page_config(page_title="BankMate", layout="centered")
 
-# === CUSTOM CSS FOR BANKING STYLE ===
+# === CUSTOM CSS FOR BANKING STYLE + RTL SUPPORT ===
 st.markdown(
     """
     <style>
@@ -56,6 +56,8 @@ st.markdown(
             font-size: 0.9em;
             color: #aaa;
         }
+
+        /* Chat Bubbles */
         .user-bubble {
             background-color: #dcf8c6;
             align-self: flex-end;
@@ -64,6 +66,9 @@ st.markdown(
             margin: 5px 0;
             max-width: 80%;
             align-items: flex-end;
+            float: right;
+            clear: both;
+            text-align: right;
         }
         .bot-bubble {
             background-color: #e1f5fe;
@@ -73,6 +78,13 @@ st.markdown(
             margin: 5px 0;
             max-width: 80%;
             align-items: flex-start;
+            float: left;
+            clear: both;
+            text-align: left;
+        }
+        .rtl {
+            direction: rtl;
+            text-align: right !important;
         }
     </style>
     """,
@@ -90,7 +102,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Header image/logo
+# Logo
 col1, col2, col3 = st.columns([1, 4, 1])
 with col2:
     st.image("https://cdn-icons-png.flaticon.com/512/4712/4712109.png ", width=100)
@@ -231,22 +243,53 @@ st.markdown(f"<p style='text-align:center; font-size:1.2em;'>{greeting} Comment 
 # Chat container
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
-# User Input Section
-user_input = st.text_input("💬 Posez votre question :", placeholder="Exemple: Comment consulter mon solde ?")
+# Initialize chat history
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
 
-# File Upload Section
+# File Upload Section (MOVED FIRST)
 uploaded_file = st.file_uploader("📎 Télécharger un virement à analyser (.png/.jpg)", type=["png", "jpg", "jpeg"])
+
+# Handle File Upload
+if uploaded_file:
+    base64_img = encode_image_file(uploaded_file)
+    st.markdown(f'<div class="user-bubble">📎 Fichier uploadé</div>', unsafe_allow_html=True)
+    st.image(uploaded_file, caption="Virement reçu", use_column_width=True)
+
+    with st.spinner("🧠 Analyse du virement en cours..."):
+        extracted_data = extract_invoice_data(base64_img)
+
+        result = (
+            f'📄 Données extraites :<br>'
+            f'👤 Payer: {extracted_data.get("payer", {}).get("name", "")} ({extracted_data.get("payer", {}).get("account", "")})<br>'
+            f'👤 Payee: {extracted_data.get("payee", {}).get("name", "")} ({extracted_data.get("payee", {}).get("account", "")})<br>'
+            f'📅 Date: {extracted_data.get("date", "")}<br>'
+            f'💬 Raison: {extracted_data.get("reason", "")}<br>'
+            f'💶 Montant (lettres): {extracted_data.get("amount_words", "")}<br><br>'
+            f'✅ Validation:<br>' +
+            "<br>".join([f"- {check}" for check in validate_invoice_fields(extracted_data)])
+        )
+
+        st.markdown(f'<div class="bot-bubble">{result}</div>', unsafe_allow_html=True)
+        st.session_state.chat_history.append({"role": "bot", "label": "🤖 BankMate", "content": result})
+
+# User Input Section (MOVED AFTER FILE UPLOAD)
+user_input = st.text_input("💬 Posez votre question :", placeholder="Exemple: Comment consulter mon solde ?")
 
 # Handle User Input
 if user_input:
-    st.markdown(f'<div class="user-bubble"><strong>👤 Vous:</strong><br>{user_input}</div>', unsafe_allow_html=True)
-
+    st.session_state.chat_history.append({"role": "user", "label": "👤 Vous", "content": user_input})
+    
     try:
         lang = detect(user_input)
     except LangDetectException:
         lang = 'en'
 
-    if lang not in ['en', 'fr']:
+    # Fallback logic
+    if lang not in ['en', 'fr', 'ar']:
+        lang = 'en'
+    elif lang == 'ar' and ('Answer_ar' not in df.columns or df['Answer_ar'].isnull().all()):
+        st.warning("⚠️ Données arabes indisponibles, basculement vers l'anglais.")
         lang = 'en'
 
     query = model.encode(user_input)
@@ -255,30 +298,45 @@ if user_input:
 
     profile_col = f"Profile_{lang}" if lang != "en" else "Profile"
     answer_col = f"Answer_{lang}" if lang != "en" else "Answer"
+    response_text = df.iloc[idx][answer_col]
+    profile_text = df.iloc[idx][profile_col]
 
-    st.markdown(f'<div class="bot-bubble"><strong>🤖 BankMate:</strong><br>'
-                f'🔍 Profil concerné: <i>{df.iloc[idx][profile_col]}</i><br>'
-                f'📌 Réponse: {df.iloc[idx][answer_col]}</div>', unsafe_allow_html=True)
+    if lang == 'ar':
+        st.markdown(
+            f"""
+            <div class="bot-bubble rtl">
+                <strong>🤖 BankMate:</strong><br>
+                <b>الملف المعني:</b> <i>{profile_text}</i><br>
+                <b>الرد:</b> {response_text}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            f'<div class="bot-bubble"><strong>🤖 BankMate:</strong><br>'
+            f'🔍 Profil concerné: <i>{profile_text}</i><br>'
+            f'📌 Réponse: {response_text}</div>',
+            unsafe_allow_html=True,
+        )
 
-# Handle File Upload
-if uploaded_file:
-    st.markdown(f'<div class="user-bubble"><strong>📎 Fichier uploadé:</strong></div>', unsafe_allow_html=True)
-    base64_img = encode_image_file(uploaded_file)
-    st.image(uploaded_file, caption="Virement reçu", use_column_width=True)
+    st.session_state.chat_history.append({
+        "role": "bot",
+        "label": "🤖 BankMate",
+        "content": (
+            f"<strong>🔍 Profil concerné:</strong> <i>{profile_text}</i><br>"
+            f"<strong>📌 Réponse:</strong> {response_text}"
+        ) if lang != 'ar' else (
+            f"<strong>الملف المعني:</strong> <i>{profile_text}</i><br>"
+            f"<strong>الرد:</strong> {response_text}"
+        )
+    })
 
-    with st.spinner("🧠 Analyse du virement en cours..."):
-        extracted_data = extract_invoice_data(base64_img)
-
-        st.markdown(f'<div class="bot-bubble"><strong>📄 Données extraites :</strong><br>'
-                    f'👤 Payer: {extracted_data.get("payer", {}).get("name", "")} ({extracted_data.get("payer", {}).get("account", "")})<br>'
-                    f'👤 Payee: {extracted_data.get("payee", {}).get("name", "")} ({extracted_data.get("payee", {}).get("account", "")})<br>'
-                    f'📅 Date: {extracted_data.get("date", "")}<br>'
-                    f'💬 Raison: {extracted_data.get("reason", "")}<br>'
-                    f'💶 Montant (lettres): {extracted_data.get("amount_words", "")}<br><br>'
-                    f'✅ Validation:<br>' +
-                    "<br>".join([f"- {check}" for check in validate_invoice_fields(extracted_data)]) +
-                    "</div>",
-                    unsafe_allow_html=True)
+# Show chat history
+for msg in st.session_state.chat_history:
+    bubble_class = "user-bubble" if msg["role"] == "user" else "bot-bubble"
+    content = msg["content"]
+    st.markdown(f'<div class="{bubble_class}"><strong>{msg["label"]}:</strong><br>{content}</div>', unsafe_allow_html=True)
 
 # Close chat container
 st.markdown('</div>', unsafe_allow_html=True)
