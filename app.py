@@ -4,7 +4,7 @@ import base64
 import pandas as pd
 from datetime import datetime
 
-# Suppress PyTorch warnings from Streamlit watcher
+# Suppress Torch warnings from Streamlit watcher
 os.environ["TORCH_SHOW_CPP_STACKTRACES"] = "0"
 
 import streamlit as st
@@ -112,7 +112,11 @@ def build_embeddings(data):
 embeddings, nn_models = build_embeddings(df)
 
 # === EXTRACTION VIREMENT SETUP ===
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))  # Set this in secrets or environment
+try:
+    client = Groq(api_key=st.secrets["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"])
+except KeyError:
+    st.error("❌ GROQ_API_KEY non trouvé. Veuillez le configurer dans `.streamlit/secrets.toml` ou comme variable d'environnement.")
+    st.stop()
 
 def encode_image_file(uploaded_file):
     return base64.b64encode(uploaded_file.read()).decode("utf-8")
@@ -128,22 +132,26 @@ def extract_invoice_data(base64_image):
     Return null for missing fields. Maintain this structure exactly.
     """
 
-    response = client.chat.completions.create(
-        model="meta-llama/llama-4-scout-17b-16e-instruct",
-        response_format={"type": "json_object"},
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "Extract all invoice data"},
-                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
-                ]
-            }
-        ],
-        temperature=0.0,
-    )
-    return json.loads(response.choices[0].message.content)
+    try:
+        response = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Extract all invoice data"},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
+                    ]
+                }
+            ],
+            temperature=0.0,
+        )
+        return json.loads(response.choices[0].message.content)
+    except Exception as e:
+        st.error(f"❌ Erreur lors de l'extraction de l'image : {str(e)}")
+        return {}
 
 def convert_french_amount(words):
     french_numbers = {
@@ -180,12 +188,12 @@ def validate_date(date_str):
 
 def validate_invoice_fields(data):
     results = []
-    results.append("✅ Payer name" if data['payer']['name'] else "❌ Missing payer name")
-    results.append("✅ Payee name" if data['payee']['name'] else "❌ Missing payee name")
-    results.append("✅ Payer account" if data['payer']['account'] and len(data['payer']['account']) == 8 else "❌ Invalid payer account")
-    results.append("✅ Payee account" if data['payee']['account'] and len(data['payee']['account']) == 20 else "❌ Invalid payee account")
-    results.append("✅ Valid date" if validate_date(data['date']) else "❌ Invalid or missing date")
-    results.append("✅ Reason provided" if data['reason'] else "❌ Missing reason")
+    results.append("✅ Payer name" if data.get('payer', {}).get('name') else "❌ Missing payer name")
+    results.append("✅ Payee name" if data.get('payee', {}).get('name') else "❌ Missing payee name")
+    results.append("✅ Payer account" if data.get('payer', {}).get('account') and len(data['payer']['account']) == 8 else "❌ Invalid payer account")
+    results.append("✅ Payee account" if data.get('payee', {}).get('account') and len(data['payee']['account']) == 20 else "❌ Invalid payee account")
+    results.append("✅ Valid date" if validate_date(data.get('date', '')) else "❌ Invalid or missing date")
+    results.append("✅ Reason provided" if data.get('reason') else "❌ Missing reason")
     return results
 
 # === TAB 1: CHATBOT BANCAIRE ===
@@ -248,15 +256,18 @@ with tab2:
             extracted_data = extract_invoice_data(base64_img)
 
             st.markdown("### 📄 Données extraites")
-            st.write(f"👤 Payer : {extracted_data['payer']['name']} ({extracted_data['payer']['account']})")
-            st.write(f"👤 Payee : {extracted_data['payee']['name']} ({extracted_data['payee']['account']})")
-            st.write(f"📅 Date : {extracted_data['date']}")
-            st.write(f"💬 Raison : {extracted_data['reason']}")
-            st.write(f"💶 Montant en lettres : {extracted_data['amount_words']}")
+            if extracted_data:
+                st.write(f"👤 Payer : {extracted_data.get('payer', {}).get('name', '')} ({extracted_data.get('payer', {}).get('account', '')})")
+                st.write(f"👤 Payee : {extracted_data.get('payee', {}).get('name', '')} ({extracted_data.get('payee', {}).get('account', '')})")
+                st.write(f"📅 Date : {extracted_data.get('date', '')}")
+                st.write(f"💬 Raison : {extracted_data.get('reason', '')}")
+                st.write(f"💶 Montant en lettres : {extracted_data.get('amount_words', '')}")
 
-            st.markdown("### ✅ Résultats de validation")
-            for check in validate_invoice_fields(extracted_data):
-                st.write(f"- {check}")
+                st.markdown("### ✅ Résultats de validation")
+                for check in validate_invoice_fields(extracted_data):
+                    st.write(f"- {check}")
+            else:
+                st.warning("Aucune donnée extraite trouvée.")
 
 # Footer
 st.markdown("---")
