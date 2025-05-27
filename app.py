@@ -345,8 +345,5 @@ if user_input:
         )
     })
 
-    # Clear the input field
-    user_input = ""
-
 # Footer
 st.markdown('<div class="footer">© 2025 BankMate - Tous droits réservés.</div>', unsafe_allow_html=True)
