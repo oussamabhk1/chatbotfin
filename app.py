@@ -1,5 +1,3 @@
-# --- FULL CORRECTED STREAMLIT APP WITH DYNAMIC CHAT ---
-
 import os
 import json
 import base64
@@ -16,11 +14,7 @@ from sentence_transformers import SentenceTransformer
 from sklearn.neighbors import NearestNeighbors
 
 # === PAGE CONFIGURATION ===
-st.set_page_config(
-    page_title="BankMate", 
-    layout="centered",
-    initial_sidebar_state="collapsed"
-)
+st.set_page_config(page_title="BankMate", layout="centered")
 
 # === CUSTOM CSS FOR BANKING STYLE + RTL SUPPORT ===
 st.markdown(
@@ -40,9 +34,6 @@ st.markdown(
             border-radius: 10px;
             background-color: #ffffff;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            max-height: 60vh;
-            overflow-y: auto;
-            padding-bottom: 100px;
         }
         .header {
             text-align: center;
@@ -65,22 +56,28 @@ st.markdown(
             font-size: 0.9em;
             color: #aaa;
         }
+
+        /* Chat Bubbles */
         .user-bubble {
             background-color: #dcf8c6;
+            align-self: flex-end;
             border-radius: 10px;
             padding: 10px;
             margin: 5px 0;
             max-width: 80%;
+            align-items: flex-end;
             float: right;
             clear: both;
             text-align: right;
         }
         .bot-bubble {
             background-color: #e1f5fe;
+            align-self: flex-start;
             border-radius: 10px;
             padding: 10px;
             margin: 5px 0;
             max-width: 80%;
+            align-items: flex-start;
             float: left;
             clear: both;
             text-align: left;
@@ -88,17 +85,6 @@ st.markdown(
         .rtl {
             direction: rtl;
             text-align: right !important;
-        }
-        .stTextInput {
-            position: fixed;
-            bottom: 20px;
-            width: 80%;
-            background: white;
-            padding: 10px;
-            z-index: 100;
-        }
-        .uploader-container {
-            margin-bottom: 70px;
         }
     </style>
     """,
@@ -119,7 +105,7 @@ st.markdown(
 # Logo
 col1, col2, col3 = st.columns([1, 4, 1])
 with col2:
-    st.image("https://cdn-icons-png.flaticon.com/512/4712/4712109.png", width=100)
+    st.image("https://cdn-icons-png.flaticon.com/512/4712/4712109.png ", width=100)
 
 # === INITIALISATION CHATBOT ===
 @st.cache_resource
@@ -163,7 +149,7 @@ def build_embeddings(data):
 embeddings, nn_models = build_embeddings(df)
 
 # === EXTRACTION VIREMENT SETUP ===
-client = Groq(api_key="your_actual_api_key_here")
+client = Groq(api_key="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")  # Replace securely in production
 
 def encode_image_file(uploaded_file):
     return base64.b64encode(uploaded_file.read()).decode("utf-8")
@@ -212,6 +198,7 @@ def convert_french_amount(words):
         'quatre-vingt': 80, 'quatre-vingt-dix': 90,
         'cent': 100, 'cents': 100, 'mille': 1000
     }
+
     words = words.lower().replace('dinars', '').replace('dinar', '').strip()
     total = current = 0
     for word in words.split():
@@ -242,58 +229,48 @@ def validate_invoice_fields(data):
     results.append("✅ Reason provided" if data.get('reason') else "❌ Missing reason")
     return results
 
-# === GREETING ===
+# === MAIN APP LOGIC ===
 now = datetime.now().hour
-greeting = "☀️ Bonjour !" if now < 12 else "🌤️ Bon après-midi !" if now < 18 else "🌙 Bonsoir !"
-st.markdown(f"<p style='text-align:center; font-size:1.2em;'>{greeting} Comment puis-je vous aider aujourd'hui ?</p>", unsafe_allow_html=True)
+if now < 12:
+    greeting = "☀️ Bonjour !"
+elif now < 18:
+    greeting = "🌤️ Bon après-midi !"
+else:
+    greeting = "🌙 Bonsoir !"
 
-# === INITIALIZE CHAT STATE ===
+st.markdown(f"<p style='text-align:center; font-size:1.2em;'>{greeting} Comment puis-je vous aider aujourd’hui ?</p>", unsafe_allow_html=True)
+
+# Initialize chat history
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# === MAIN INTERFACE ===
-chat_container = st.container()
+# Chat container
+st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
-# Afficher l'historique du chat
-with chat_container:
-    for msg in st.session_state.chat_history:
-        bubble_class = "user-bubble" if msg["role"] == "user" else "bot-bubble"
-        direction_class = "rtl" if msg.get("lang") == "ar" else ""
-        st.markdown(
-            f'<div class="{bubble_class} {direction_class}"><strong>{msg["label"]}:</strong><br>{msg["content"]}</div>', 
-            unsafe_allow_html=True
-        )
+# Show chat history
+for msg in st.session_state.chat_history:
+    bubble_class = "user-bubble" if msg["role"] == "user" else "bot-bubble"
+    content = msg["content"]
+    st.markdown(f'<div class="{bubble_class}"><strong>{msg["label"]}:</strong><br>{content}</div>', unsafe_allow_html=True)
 
-# Formulaire pour la saisie utilisateur
-with st.form(key='chat_form', clear_on_submit=True):
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        user_input = st.text_input(
-            "💬 Posez votre question :", 
-            placeholder="Exemple: Comment consulter mon solde ?", 
-            key="user_input",
-            label_visibility="collapsed"
-        )
-    with col2:
-        submit_button = st.form_submit_button(label="Envoyer")
+# Close chat container
+st.markdown('</div>', unsafe_allow_html=True)
 
-# Uploader de fichier séparé
-with st.container():
-    st.markdown('<div class="uploader-container">', unsafe_allow_html=True)
-    uploaded_file = st.file_uploader(
-        "📎 Télécharger un virement à analyser (.png/.jpg)", 
-        type=["png", "jpg", "jpeg"],
-        label_visibility="collapsed"
-    )
-    st.markdown('</div>', unsafe_allow_html=True)
+# File Upload Section
+uploaded_file = st.file_uploader("📎 Télécharger un virement à analyser (.png/.jpg)", type=["png", "jpg", "jpeg"])
 
-# Gestion de l'upload de fichier
-if uploaded_file and not submit_button:
+# User Input Section
+user_input = st.text_input("💬 Posez votre question :", placeholder="Exemple: Comment consulter mon solde ?")
+
+# Handle File Upload
+if uploaded_file:
     base64_img = encode_image_file(uploaded_file)
-    st.session_state.chat_history.append({"role": "user", "label": "👤 Vous", "content": "📎 Fichier uploadé"})
-    
+    st.markdown(f'<div class="user-bubble">📎 Fichier uploadé</div>', unsafe_allow_html=True)
+    st.image(uploaded_file, caption="Virement reçu", use_column_width=True)
+
     with st.spinner("🧠 Analyse du virement en cours..."):
         extracted_data = extract_invoice_data(base64_img)
+
         result = (
             f'📄 Données extraites :<br>'
             f'👤 Payer: {extracted_data.get("payer", {}).get("name", "")} ({extracted_data.get("payer", {}).get("account", "")})<br>'
@@ -303,53 +280,73 @@ if uploaded_file and not submit_button:
             f'💶 Montant (lettres): {extracted_data.get("amount_words", "")}<br><br>'
             f'✅ Validation:<br>' +
             "<br>".join([f"- {check}" for check in validate_invoice_fields(extracted_data)])
-        
-        st.session_state.chat_history.append({"role": "bot", "label": "🤖 BankMate", "content": result})
-    
-    # Rafraîchir l'affichage
-    st.rerun()
+        )
 
-# Gestion de la saisie utilisateur
-if submit_button and user_input:
+        st.markdown(f'<div class="bot-bubble">{result}</div>', unsafe_allow_html=True)
+        st.session_state.chat_history.append({
+            "role": "bot",
+            "label": "🤖 BankMate",
+            "content": result
+        })
+
+# Handle User Input
+if user_input:
     st.session_state.chat_history.append({"role": "user", "label": "👤 Vous", "content": user_input})
     
     try:
         lang = detect(user_input)
     except LangDetectException:
         lang = 'en'
-    
+
+    # Fallback logic
     if lang not in ['en', 'fr', 'ar']:
         lang = 'en'
     elif lang == 'ar' and ('Answer_ar' not in df.columns or df['Answer_ar'].isnull().all()):
         st.warning("⚠️ Données arabes indisponibles, basculement vers l'anglais.")
         lang = 'en'
-    
+
     query = model.encode(user_input)
     distances, indices = nn_models[lang].kneighbors([query])
     idx = indices[0][0]
+
     profile_col = f"Profile_{lang}" if lang != "en" else "Profile"
     answer_col = f"Answer_{lang}" if lang != "en" else "Answer"
     response_text = df.iloc[idx][answer_col]
     profile_text = df.iloc[idx][profile_col]
-    
+
     if lang == 'ar':
-        content = f"<b>الملف المعني:</b> <i>{profile_text}</i><br><b>الرد:</b> {response_text}"
-        st.session_state.chat_history.append({
-            "role": "bot", 
-            "label": "🤖 BankMate", 
-            "content": content,
-            "lang": "ar"
-        })
+        st.markdown(
+            f"""
+            <div class="bot-bubble rtl">
+                <strong>🤖 BankMate:</strong><br>
+                <b>الملف المعني:</b> <i>{profile_text}</i><br>
+                <b>الرد:</b> {response_text}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     else:
-        content = f"<strong>🔍 Profil concerné:</strong> <i>{profile_text}</i><br><strong>📌 Réponse:</strong> {response_text}"
-        st.session_state.chat_history.append({
-            "role": "bot", 
-            "label": "🤖 BankMate", 
-            "content": content
-        })
-    
-    # Rafraîchir l'affichage
-    st.rerun()
+        st.markdown(
+            f'<div class="bot-bubble"><strong>🤖 BankMate:</strong><br>'
+            f'🔍 Profil concerné: <i>{profile_text}</i><br>'
+            f'📌 Réponse: {response_text}</div>',
+            unsafe_allow_html=True,
+        )
+
+    st.session_state.chat_history.append({
+        "role": "bot",
+        "label": "🤖 BankMate",
+        "content": (
+            f"<strong>🔍 Profil concerné:</strong> <i>{profile_text}</i><br>"
+            f"<strong>📌 Réponse:</strong> {response_text}"
+        ) if lang != 'ar' else (
+            f"<strong>الملف المعني:</strong> <i>{profile_text}</i><br>"
+            f"<strong>الرد:</strong> {response_text}"
+        )
+    })
+
+    # Clear the input field
+    user_input = ""
 
 # Footer
 st.markdown('<div class="footer">© 2025 BankMate - Tous droits réservés.</div>', unsafe_allow_html=True)
