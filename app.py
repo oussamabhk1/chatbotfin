@@ -4,6 +4,9 @@ import base64
 import pandas as pd
 from datetime import datetime
 
+# Suppress PyTorch warning in Streamlit (optional)
+os.environ["TORCH_SHOW_CPP_STACKTRACES"] = "1"
+
 import streamlit as st
 from groq import Groq
 from langdetect import detect, LangDetectException
@@ -96,7 +99,7 @@ def build_embeddings(data):
     embeddings['fr'] = model.encode(fr_questions.tolist())
     nn_models['fr'] = NearestNeighbors(n_neighbors=1, metric="cosine").fit(embeddings['fr'])
 
-    # Arabic (only if columns exist)
+    # Arabic (only if columns exist and are not empty)
     if "Question_ar" in data.columns and not data["Question_ar"].isnull().all():
         ar_questions = data["Profile_ar"].fillna('') + " - " + data["Question_ar"].fillna('')
         embeddings['ar'] = model.encode(ar_questions.tolist())
@@ -109,7 +112,8 @@ def build_embeddings(data):
 embeddings, nn_models = build_embeddings(df)
 
 # === EXTRACTION VIREMENT SETUP ===
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))  # Set this in secrets or environment
+# Use environment variable or secrets.toml for production
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))  # Set this in secrets or env
 
 def encode_image_file(uploaded_file):
     return base64.b64encode(uploaded_file.read()).decode("utf-8")
