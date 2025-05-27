@@ -232,16 +232,6 @@ with tab1:
         st.write("### 📌 Réponse suggérée :")
         st.success(df.iloc[idx][answer_col])
 
-    # FAQ Section
-    st.subheader("🔍 Questions Fréquentes")
-    faqs = [
-        {"question": "Comment effectuer un virement ?", "answer": "Suivez ces étapes pour effectuer un virement."},
-        {"question": "Où trouver mon solde ?", "answer": "Consultez votre compte en ligne."}
-    ]
-    for faq in faqs:
-        with st.expander(faq["question"]):
-            st.write(faq["answer"])
-
 # === TAB 2: EXTRACTION VIREMENTS ===
 with tab2:
     st.subheader("Uploader un virement à analyser")
