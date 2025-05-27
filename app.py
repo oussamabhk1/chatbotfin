@@ -240,12 +240,12 @@ else:
 
 st.markdown(f"<p style='text-align:center; font-size:1.2em;'>{greeting} Comment puis-je vous aider aujourd’hui ?</p>", unsafe_allow_html=True)
 
-# Chat container
-st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-
 # Initialize chat history
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+
+# Chat container
+st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
 # Show chat history
 for msg in st.session_state.chat_history:
