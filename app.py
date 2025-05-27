@@ -16,13 +16,15 @@ from sklearn.neighbors import NearestNeighbors
 # === PAGE CONFIGURATION ===
 st.set_page_config(page_title="BankMate", layout="centered")
 
-# === CUSTOM CSS FOR BANKING STYLE + DARK MODE ===
+# === CUSTOM CSS FOR BANKING STYLE ===
 st.markdown(
     """
     <style>
         body {
-            background-color: #f5f5f5;
+            background-color: #eef2f7;
             color: #333;
+        }
+        .stApp {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         .chat-container {
@@ -55,51 +57,27 @@ st.markdown(
             color: #aaa;
         }
         .user-bubble {
-            background-color: #eef2ff; /* Light blue for user messages */
-            float: right;
-            clear: both;
+            background-color: #dcf8c6;
+            align-self: flex-end;
             border-radius: 10px;
             padding: 10px;
             margin: 5px 0;
             max-width: 80%;
-            color: #333;
+            align-items: flex-end;
         }
         .bot-bubble {
-            background-color: #333; /* Dark gray for bot responses */
-            float: left;
-            clear: both;
+            background-color: #e1f5fe;
+            align-self: flex-start;
             border-radius: 10px;
             padding: 10px;
             margin: 5px 0;
             max-width: 80%;
-            color: #fff;
-        }
-        .dark-mode-toggle {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            z-index: 999;
+            align-items: flex-start;
         }
     </style>
     """,
     unsafe_allow_html=True,
 )
-
-# === STATE MANAGEMENT ===
-if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = False
-
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
-# === TOGGLE DARK MODE ===
-def toggle_dark_mode():
-    st.session_state.dark_mode = not st.session_state.dark_mode
-
-st.markdown('<div class="dark-mode-toggle">', unsafe_allow_html=True)
-if st.button("🌙 Basculer en mode sombre" if not st.session_state.dark_mode else "☀️ Basculer en mode clair"):
-    toggle_dark_mode()
-st.markdown('</div>', unsafe_allow_html=True)
 
 # === HEADER ===
 st.markdown(
@@ -112,7 +90,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Logo
+# Header image/logo
 col1, col2, col3 = st.columns([1, 4, 1])
 with col2:
     st.image("https://cdn-icons-png.flaticon.com/512/4712/4712109.png ", width=100)
@@ -139,17 +117,14 @@ def build_embeddings(data):
     embeddings = {}
     nn_models = {}
 
-    # English
     en_questions = data["Profile"].fillna('') + " - " + data["Question"].fillna('')
     embeddings['en'] = model.encode(en_questions.tolist())
     nn_models['en'] = NearestNeighbors(n_neighbors=1, metric="cosine").fit(embeddings['en'])
 
-    # French
     fr_questions = data["Profile_fr"].fillna('') + " - " + data["Question_fr"].fillna('')
     embeddings['fr'] = model.encode(fr_questions.tolist())
     nn_models['fr'] = NearestNeighbors(n_neighbors=1, metric="cosine").fit(embeddings['fr'])
 
-    # Arabic (only if columns exist and are not empty)
     if "Question_ar" in data.columns and not data["Question_ar"].isnull().all():
         ar_questions = data["Profile_ar"].fillna('') + " - " + data["Question_ar"].fillna('')
         embeddings['ar'] = model.encode(ar_questions.tolist())
@@ -159,7 +134,7 @@ def build_embeddings(data):
 
     return embeddings, nn_models
 
-embeddings, nn_models = build_embeddings(df)  # Ensure this runs before accessing nn_models
+embeddings, nn_models = build_embeddings(df)
 
 # === EXTRACTION VIREMENT SETUP ===
 client = Groq(api_key="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")  # Replace securely in production
@@ -256,26 +231,16 @@ st.markdown(f"<p style='text-align:center; font-size:1.2em;'>{greeting} Comment 
 # Chat container
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
-# Show chat history
-for msg in st.session_state.chat_history:
-    bubble_class = "user-bubble" if msg["role"] == "user" else "bot-bubble"
-    st.markdown(f'<div class="{bubble_class}"><strong>{msg["label"]}:</strong><br>{msg["content"]}</div>', unsafe_allow_html=True)
-
 # User Input Section
 user_input = st.text_input("💬 Posez votre question :", placeholder="Exemple: Comment consulter mon solde ?")
 
 # File Upload Section
 uploaded_file = st.file_uploader("📎 Télécharger un virement à analyser (.png/.jpg)", type=["png", "jpg", "jpeg"])
 
-# Clear Chat Button
-if st.button("🧹 Effacer la conversation"):
-    st.session_state.chat_history = []
-    st.experimental_rerun()  # Removed experimental_rerun
-
 # Handle User Input
 if user_input:
-    st.session_state.chat_history.append({"role": "user", "label": "👤 Vous", "content": user_input})
-    
+    st.markdown(f'<div class="user-bubble"><strong>👤 Vous:</strong><br>{user_input}</div>', unsafe_allow_html=True)
+
     try:
         lang = detect(user_input)
     except LangDetectException:
@@ -291,32 +256,29 @@ if user_input:
     profile_col = f"Profile_{lang}" if lang != "en" else "Profile"
     answer_col = f"Answer_{lang}" if lang != "en" else "Answer"
 
-    bot_response = (
-        f'🔍 Profil concerné: <i>{df.iloc[idx][profile_col]}</i><br>'
-        f'📌 Réponse: {df.iloc[idx][answer_col]}'
-    )
-
-    st.session_state.chat_history.append({"role": "bot", "label": "🤖 BankMate", "content": bot_response})
+    st.markdown(f'<div class="bot-bubble"><strong>🤖 BankMate:</strong><br>'
+                f'🔍 Profil concerné: <i>{df.iloc[idx][profile_col]}</i><br>'
+                f'📌 Réponse: {df.iloc[idx][answer_col]}</div>', unsafe_allow_html=True)
 
 # Handle File Upload
 if uploaded_file:
-    st.session_state.chat_history.append({"role": "user", "label": "📎 Fichier uploadé", "content": ""})
+    st.markdown(f'<div class="user-bubble"><strong>📎 Fichier uploadé:</strong></div>', unsafe_allow_html=True)
     base64_img = encode_image_file(uploaded_file)
+    st.image(uploaded_file, caption="Virement reçu", use_column_width=True)
 
     with st.spinner("🧠 Analyse du virement en cours..."):
         extracted_data = extract_invoice_data(base64_img)
 
-        result = (
-            f'📄 Données extraites :<br>'
-            f'👤 Payer: {extracted_data.get("payer", {}).get("name", "")} ({extracted_data.get("payer", {}).get("account", "")})<br>'
-            f'👤 Payee: {extracted_data.get("payee", {}).get("name", "")} ({extracted_data.get("payee", {}).get("account", "")})<br>'
-            f'📅 Date: {extracted_data.get("date", "")}<br>'
-            f'💬 Raison: {extracted_data.get("reason", "")}<br>'
-            f'💶 Montant (lettres): {extracted_data.get("amount_words", "")}<br><br>'
-            f'✅ Validation:<br>' +
-            "<br>".join([f"- {check}" for check in validate_invoice_fields(extracted_data)])
-        )
-        st.session_state.chat_history.append({"role": "bot", "label": "🤖 BankMate", "content": result})
+        st.markdown(f'<div class="bot-bubble"><strong>📄 Données extraites :</strong><br>'
+                    f'👤 Payer: {extracted_data.get("payer", {}).get("name", "")} ({extracted_data.get("payer", {}).get("account", "")})<br>'
+                    f'👤 Payee: {extracted_data.get("payee", {}).get("name", "")} ({extracted_data.get("payee", {}).get("account", "")})<br>'
+                    f'📅 Date: {extracted_data.get("date", "")}<br>'
+                    f'💬 Raison: {extracted_data.get("reason", "")}<br>'
+                    f'💶 Montant (lettres): {extracted_data.get("amount_words", "")}<br><br>'
+                    f'✅ Validation:<br>' +
+                    "<br>".join([f"- {check}" for check in validate_invoice_fields(extracted_data)]) +
+                    "</div>",
+                    unsafe_allow_html=True)
 
 # Close chat container
 st.markdown('</div>', unsafe_allow_html=True)
