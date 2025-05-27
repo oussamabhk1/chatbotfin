@@ -112,11 +112,8 @@ def build_embeddings(data):
 embeddings, nn_models = build_embeddings(df)
 
 # === EXTRACTION VIREMENT SETUP ===
-try:
-    client = Groq(api_key=st.secrets["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"])
-except KeyError:
-    st.error("❌ GROQ_API_KEY non trouvé. Veuillez le configurer dans `.streamlit/secrets.toml` ou comme variable d'environnement.")
-    st.stop()
+# 🔑 Hardcoded API key for local testing
+client = Groq(api_key="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")
 
 def encode_image_file(uploaded_file):
     return base64.b64encode(uploaded_file.read()).decode("utf-8")
@@ -190,8 +187,8 @@ def validate_invoice_fields(data):
     results = []
     results.append("✅ Payer name" if data.get('payer', {}).get('name') else "❌ Missing payer name")
     results.append("✅ Payee name" if data.get('payee', {}).get('name') else "❌ Missing payee name")
-    results.append("✅ Payer account" if data.get('payer', {}).get('account') and len(data['payer']['account']) == 8 else "❌ Invalid payer account")
-    results.append("✅ Payee account" if data.get('payee', {}).get('account') and len(data['payee']['account']) == 20 else "❌ Invalid payee account")
+    results.append("✅ Payer account" if data.get('payer', {}).get('account') and len(data.get('payer', {}).get('account', '')) == 8 else "❌ Invalid payer account")
+    results.append("✅ Payee account" if data.get('payee', {}).get('account') and len(data.get('payee', {}).get('account', '')) == 20 else "❌ Invalid payee account")
     results.append("✅ Valid date" if validate_date(data.get('date', '')) else "❌ Invalid or missing date")
     results.append("✅ Reason provided" if data.get('reason') else "❌ Missing reason")
     return results
